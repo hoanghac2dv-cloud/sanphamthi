@@ -1,0 +1,234 @@
+{
+  "entities": {
+    "School": {
+      "title": "School",
+      "description": "Educational institution record for multi-tenant isolation.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "code": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "name", "code", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "AcademicYear": {
+      "title": "AcademicYear",
+      "description": "School academic year record.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "isCurrent": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["ACTIVE", "ARCHIVED"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "name", "isCurrent", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User account record (ADMIN, TEACHER, STUDENT). Passwords are never stored in plaintext.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "schoolId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "username": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "code": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["ADMIN", "TEACHER", "STUDENT"] },
+        "status": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "NEEDS_ASSIGNMENT_CHECK"] },
+        "classId": { "type": "string", "maxLength": 128 },
+        "className": { "type": "string", "maxLength": 64 },
+        "grade": { "type": "number" },
+        "subjectCode": { "type": "string", "maxLength": 64 },
+        "dataSource": { "type": "string", "enum": ["DEMO", "REAL"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "schoolId", "username", "code", "fullName", "role", "status", "dataSource", "createdBy", "createdAt", "updatedAt"]
+    },
+    "ClassRoom": {
+      "title": "ClassRoom",
+      "description": "Class entity linked to school and academic year.",
+      "type": "object",
+      "properties": {
+        "classId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "schoolId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "academicYearId": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "grade": { "type": "number" },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "teacherName": { "type": "string", "maxLength": 120 },
+        "studentCount": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classId", "schoolId", "academicYearId", "name", "grade", "teacherId", "createdBy", "createdAt", "updatedAt"]
+    },
+    "ClassMember": {
+      "title": "ClassMember",
+      "description": "Membership mapping student or teacher to a class.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "memberRole": { "type": "string", "enum": ["TEACHER", "STUDENT"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "classId", "userId", "memberRole", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Curriculum subject.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 120 },
+        "grade": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "code", "name", "grade", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Topic": {
+      "title": "Topic",
+      "description": "Curriculum topic such as FACTORING_POLYNOMIAL.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 200 },
+        "subjectCode": { "type": "string", "maxLength": 64 },
+        "grade": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "code", "name", "subjectCode", "grade", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Competency": {
+      "title": "Competency",
+      "description": "One of the 5 core competencies.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "enum": ["FOUNDATION", "RECOGNITION", "TRANSFORMATION", "CALC_ACCURACY", "APPLICATION"] },
+        "name": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 500 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "code", "name", "description", "createdBy", "createdAt", "updatedAt"]
+    },
+    "ErrorType": {
+      "title": "ErrorType",
+      "description": "Standardized error tag definition.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "enum": ["CONCEPT_ERROR", "FORMULA_ERROR", "PROCEDURE_ERROR", "SIGN_ERROR", "CALCULATION_ERROR", "APPLICATION_ERROR"] },
+        "name": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 500 },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "code", "name", "description", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Question": {
+      "title": "Question",
+      "description": "Question bank item.",
+      "type": "object",
+      "properties": {
+        "questionId": { "type": "string", "maxLength": 128 },
+        "schoolId": { "type": "string", "maxLength": 128 },
+        "grade": { "type": "number" },
+        "subject": { "type": "string", "maxLength": 64 },
+        "topic": { "type": "string", "maxLength": 64 },
+        "competency": { "type": "string", "enum": ["FOUNDATION", "RECOGNITION", "TRANSFORMATION", "CALC_ACCURACY", "APPLICATION"] },
+        "difficulty": { "type": "number" },
+        "questionType": { "type": "string", "enum": ["MULTIPLE_CHOICE", "TRUE_FALSE", "FILL_BLANK", "SHORT_ANSWER", "ERROR_ANALYSIS"] },
+        "questionText": { "type": "string", "maxLength": 2000 },
+        "correctAnswer": { "type": "string", "maxLength": 500 },
+        "solution": { "type": "string", "maxLength": 2000 },
+        "primaryUse": { "type": "string", "enum": ["PRE_TEST", "POST_TEST", "DIAGNOSTIC", "PRACTICE", "ERROR_CORRECTION", "CHECKPOINT"] },
+        "aiGenerated": { "type": "boolean" },
+        "teacherApproved": { "type": "boolean" },
+        "estimatedSeconds": { "type": "number" },
+        "points": { "type": "number" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["questionId", "schoolId", "grade", "subject", "topic", "competency", "difficulty", "questionType", "questionText", "correctAnswer", "solution", "primaryUse", "aiGenerated", "teacherApproved", "estimatedSeconds", "points", "createdBy", "createdAt", "updatedAt"]
+    },
+    "GenericTenantRecord": {
+      "title": "GenericTenantRecord",
+      "description": "Standard tenant-isolated learning record with schoolId and audit fields.",
+      "type": "object",
+      "properties": {
+        "schoolId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "maxLength": 64 },
+        "dataSource": { "type": "string", "enum": ["DEMO", "REAL"] },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["schoolId", "createdBy", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/schools/{schoolId}": { "schema": "School", "description": "Schools collection" },
+    "/academicYears/{yearId}": { "schema": "AcademicYear", "description": "Academic years collection" },
+    "/users/{userId}": { "schema": "User", "description": "Users collection" },
+    "/classes/{classId}": { "schema": "ClassRoom", "description": "Classes collection" },
+    "/classMembers/{memberId}": { "schema": "ClassMember", "description": "Class memberships collection" },
+    "/subjects/{subjectId}": { "schema": "Subject", "description": "Subjects collection" },
+    "/topics/{topicId}": { "schema": "Topic", "description": "Topics collection" },
+    "/competencies/{competencyId}": { "schema": "Competency", "description": "Competencies collection" },
+    "/errorTypes/{errorTypeId}": { "schema": "ErrorType", "description": "Error types collection" },
+    "/questions/{questionId}": { "schema": "Question", "description": "Questions bank collection" },
+    "/assessments/{assessmentId}": { "schema": "GenericTenantRecord", "description": "Assessments collection" },
+    "/assessmentItems/{itemId}": { "schema": "GenericTenantRecord", "description": "Assessment items collection" },
+    "/attempts/{attemptId}": { "schema": "GenericTenantRecord", "description": "Student assessment attempts" },
+    "/responses/{responseId}": { "schema": "GenericTenantRecord", "description": "Student question responses" },
+    "/detectedErrors/{errorId}": { "schema": "GenericTenantRecord", "description": "Detected learning errors" },
+    "/competencySnapshots/{snapshotId}": { "schema": "GenericTenantRecord", "description": "Competency mastery snapshots" },
+    "/learningPaths/{pathId}": { "schema": "GenericTenantRecord", "description": "Personalized learning paths" },
+    "/learningPathSteps/{stepId}": { "schema": "GenericTenantRecord", "description": "Steps in a learning path" },
+    "/taskAttempts/{taskAttemptId}": { "schema": "GenericTenantRecord", "description": "Adaptive task attempts" },
+    "/teacherOverrides/{overrideId}": { "schema": "GenericTenantRecord", "description": "Teacher approval/edit/reject logs" },
+    "/aiRuns/{runId}": { "schema": "GenericTenantRecord", "description": "AI execution telemetry logs" },
+    "/auditLogs/{logId}": { "schema": "GenericTenantRecord", "description": "System audit logs" },
+    "/importJobs/{jobId}": { "schema": "GenericTenantRecord", "description": "Excel import job records" },
+    "/experiments/{experimentId}": { "schema": "GenericTenantRecord", "description": "Pedagogical experiments" },
+    "/experimentParticipants/{participantId}": { "schema": "GenericTenantRecord", "description": "Experiment participants" },
+    "/experimentAssessments/{expAssessmentId}": { "schema": "GenericTenantRecord", "description": "Experiment Pre/Post links" },
+    "/experimentCompetencies/{expCompId}": { "schema": "GenericTenantRecord", "description": "Experiment target competencies" },
+    "/experimentBaselines/{baselineId}": { "schema": "GenericTenantRecord", "description": "Locked Pre-test baselines" },
+    "/experimentOutcomes/{outcomeId}": { "schema": "GenericTenantRecord", "description": "Post-test experiment outcomes" },
+    "/experimentStudentMetrics/{metricId}": { "schema": "GenericTenantRecord", "description": "Per-student Pre/Post gain metrics" },
+    "/experimentErrorMetrics/{errMetricId}": { "schema": "GenericTenantRecord", "description": "Error reduction metrics" },
+    "/feedbackForms/{formId}": { "schema": "GenericTenantRecord", "description": "Experiment feedback forms" },
+    "/feedbackQuestions/{fqId}": { "schema": "GenericTenantRecord", "description": "Feedback Likert and open questions" },
+    "/feedbackResponses/{frId}": { "schema": "GenericTenantRecord", "description": "Student and teacher feedback responses" },
+    "/experimentCaseStudies/{caseId}": { "schema": "GenericTenantRecord", "description": "Selected experiment case studies" },
+    "/experimentEvidence/{evidenceId}": { "schema": "GenericTenantRecord", "description": "Uploaded evidence with consent confirmation" }
+  }
+}

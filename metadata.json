@@ -1,0 +1,6 @@
+{
+  "name": "AI PATH - Adaptive & Personalized Learning Platform",
+  "description": "Hệ thống học tập thích ứng và cá nhân hóa bằng trí tuệ nhân tạo. Mỗi học sinh – Một điểm xuất phát – Một lộ trình phù hợp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

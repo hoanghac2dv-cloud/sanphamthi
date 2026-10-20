@@ -1,0 +1,400 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'Hoanghac2dv@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidSchool(data) {
+      return data.keys().hasAll(['schoolId', 'name', 'code', 'status', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['schoolId', 'name', 'code', 'status', 'createdBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.schoolId) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        data.code is string && data.code.size() >= 1 && data.code.size() <= 64 &&
+        data.status in ['ACTIVE', 'INACTIVE'] &&
+        isValidId(data.createdBy) &&
+        data.createdBy == request.auth.uid &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAcademicYear(data) {
+      return data.keys().hasAll(['schoolId', 'name', 'isCurrent', 'status', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['schoolId', 'name', 'isCurrent', 'status', 'createdBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.schoolId) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 64 &&
+        data.isCurrent is bool &&
+        data.status in ['ACTIVE', 'ARCHIVED'] &&
+        isValidId(data.createdBy) &&
+        data.createdBy == request.auth.uid &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['userId', 'schoolId', 'username', 'code', 'fullName', 'role', 'status', 'dataSource', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['userId', 'schoolId', 'username', 'code', 'fullName', 'role', 'status', 'classId', 'className', 'grade', 'subjectCode', 'dataSource', 'createdBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.userId) &&
+        isValidId(data.schoolId) &&
+        data.username is string && data.username.size() >= 2 && data.username.size() <= 64 &&
+        data.code is string && data.code.size() >= 1 && data.code.size() <= 64 &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+        data.role in ['ADMIN', 'TEACHER', 'STUDENT'] &&
+        data.status in ['ACTIVE', 'INACTIVE', 'NEEDS_ASSIGNMENT_CHECK'] &&
+        data.dataSource in ['DEMO', 'REAL'] &&
+        isValidId(data.createdBy) &&
+        data.createdBy == request.auth.uid &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        (!('classId' in data) || (data.classId is string && data.classId.size() <= 128)) &&
+        (!('className' in data) || (data.className is string && data.className.size() <= 64)) &&
+        (!('grade' in data) || (data.grade is int && data.grade >= 1 && data.grade <= 12)) &&
+        (!('subjectCode' in data) || (data.subjectCode is string && data.subjectCode.size() <= 64));
+    }
+
+    function isValidTenantDoc(data) {
+      return data.keys().hasAll(['schoolId', 'userId', 'status', 'dataSource', 'createdBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['schoolId', 'userId', 'studentId', 'teacherId', 'status', 'dataSource', 'payload', 'createdBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.schoolId) &&
+        isValidId(data.userId) &&
+        data.status is string && data.status.size() >= 1 && data.status.size() <= 64 &&
+        data.dataSource in ['DEMO', 'REAL'] &&
+        isValidId(data.createdBy) &&
+        data.createdBy == request.auth.uid &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        (!('studentId' in data) || isValidId(data.studentId)) &&
+        (!('teacherId' in data) || isValidId(data.teacherId)) &&
+        (!('payload' in data) || (data.payload is map && data.payload.keys().size() <= 50));
+    }
+
+    match /admins/{adminId} {
+      allow get: if isVerifiedUser() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin() && existing().userId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    match /schools/{schoolId} {
+      allow get: if isVerifiedUser() && isValidId(schoolId) && (existing().createdBy == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().createdBy == request.auth.uid;
+      allow create: if isAdmin() && isValidId(schoolId) && isValidSchool(incoming()) && incoming().schoolId == schoolId && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAdmin() && isValidId(schoolId) && isValidSchool(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /academicYears/{yearId} {
+      allow get: if isVerifiedUser() && isValidId(yearId) && (existing().createdBy == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().createdBy == request.auth.uid;
+      allow create: if isAdmin() && isValidId(yearId) && isValidAcademicYear(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(yearId) && isValidAcademicYear(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && existing().status != 'ARCHIVED' && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'isCurrent', 'status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(userId) && isValidUser(incoming()) && incoming().userId == userId && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(userId) && isValidUser(incoming()) && incoming().userId == existing().userId && incoming().schoolId == existing().schoolId && incoming().role == existing().role && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (
+        isAdmin() ||
+        (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'updatedAt']))
+      );
+      allow delete: if false;
+    }
+
+    match /classes/{classId} {
+      allow get: if isVerifiedUser() && isValidId(classId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(classId) && isValidTenantDoc(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(classId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /classMembers/{memberId} {
+      allow get: if isVerifiedUser() && isValidId(memberId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(memberId) && isValidTenantDoc(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(memberId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /subjects/{subjectId} {
+      allow get: if isVerifiedUser() && isValidId(subjectId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(subjectId) && isValidTenantDoc(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(subjectId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /topics/{topicId} {
+      allow get: if isVerifiedUser() && isValidId(topicId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(topicId) && isValidTenantDoc(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(topicId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /competencies/{competencyId} {
+      allow get: if isVerifiedUser() && isValidId(competencyId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(competencyId) && isValidTenantDoc(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(competencyId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /errorTypes/{errorTypeId} {
+      allow get: if isVerifiedUser() && isValidId(errorTypeId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(errorTypeId) && isValidTenantDoc(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(errorTypeId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /questions/{questionId} {
+      allow get: if isVerifiedUser() && isValidId(questionId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(questionId) && isValidTenantDoc(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(questionId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /assessments/{assessmentId} {
+      allow get: if isVerifiedUser() && isValidId(assessmentId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(assessmentId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(assessmentId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && existing().status != 'LOCKED' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /assessmentItems/{itemId} {
+      allow get: if isVerifiedUser() && isValidId(itemId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(itemId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(itemId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /attempts/{attemptId} {
+      allow get: if isVerifiedUser() && isValidId(attemptId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(attemptId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(attemptId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && existing().status != 'SUBMITTED' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /responses/{responseId} {
+      allow get: if isVerifiedUser() && isValidId(responseId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(responseId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(responseId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && existing().status != 'LOCKED' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /detectedErrors/{errorId} {
+      allow get: if isVerifiedUser() && isValidId(errorId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(errorId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(errorId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /competencySnapshots/{snapshotId} {
+      allow get: if isVerifiedUser() && isValidId(snapshotId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(snapshotId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(snapshotId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /learningPaths/{pathId} {
+      allow get: if isVerifiedUser() && isValidId(pathId) && (existing().userId == request.auth.uid || existing().teacherId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(pathId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().status == 'WAITING_APPROVAL' && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(pathId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (
+        isAdmin() ||
+        (existing().teacherId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']))
+      );
+      allow delete: if false;
+    }
+
+    match /learningPathSteps/{stepId} {
+      allow get: if isVerifiedUser() && isValidId(stepId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(stepId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(stepId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /taskAttempts/{taskAttemptId} {
+      allow get: if isVerifiedUser() && isValidId(taskAttemptId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(taskAttemptId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(taskAttemptId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /teacherOverrides/{overrideId} {
+      allow get: if isVerifiedUser() && isValidId(overrideId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(overrideId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /aiRuns/{runId} {
+      allow get: if isAdmin() && isValidId(runId);
+      allow list: if isAdmin() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(runId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update, delete: if false;
+    }
+
+    match /auditLogs/{logId} {
+      allow get: if isAdmin() && isValidId(logId);
+      allow list: if isAdmin() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(logId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update, delete: if false;
+    }
+
+    match /importJobs/{jobId} {
+      allow get: if isAdmin() && isValidId(jobId);
+      allow list: if isAdmin() && existing().userId == request.auth.uid;
+      allow create: if isAdmin() && isValidId(jobId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(jobId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /experiments/{experimentId} {
+      allow get: if isVerifiedUser() && isValidId(experimentId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(experimentId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().status == 'DRAFT' && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(experimentId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (
+        isAdmin() ||
+        (existing().userId == request.auth.uid && existing().status != 'ARCHIVED' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']))
+      );
+      allow delete: if false;
+    }
+
+    match /experimentParticipants/{participantId} {
+      allow get: if isVerifiedUser() && isValidId(participantId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(participantId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(participantId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /experimentAssessments/{expAssessmentId} {
+      allow get: if isVerifiedUser() && isValidId(expAssessmentId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(expAssessmentId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(expAssessmentId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /experimentCompetencies/{expCompId} {
+      allow get: if isVerifiedUser() && isValidId(expCompId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(expCompId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(expCompId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /experimentBaselines/{baselineId} {
+      allow get: if isVerifiedUser() && isValidId(baselineId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(baselineId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().status == 'LOCKED' && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    match /experimentOutcomes/{outcomeId} {
+      allow get: if isVerifiedUser() && isValidId(outcomeId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(outcomeId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(outcomeId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /experimentStudentMetrics/{metricId} {
+      allow get: if isVerifiedUser() && isValidId(metricId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(metricId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(metricId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /experimentErrorMetrics/{errMetricId} {
+      allow get: if isVerifiedUser() && isValidId(errMetricId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(errMetricId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(errMetricId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /feedbackForms/{formId} {
+      allow get: if isVerifiedUser() && isValidId(formId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(formId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(formId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /feedbackQuestions/{fqId} {
+      allow get: if isVerifiedUser() && isValidId(fqId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(fqId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(fqId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /feedbackResponses/{frId} {
+      allow get: if isVerifiedUser() && isValidId(frId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(frId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update, delete: if false;
+    }
+
+    match /experimentCaseStudies/{caseId} {
+      allow get: if isVerifiedUser() && isValidId(caseId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(caseId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isVerifiedUser() && isValidId(caseId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().userId == existing().userId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && (isAdmin() || (existing().userId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt'])));
+      allow delete: if false;
+    }
+
+    match /experimentEvidence/{evidenceId} {
+      allow get: if isVerifiedUser() && isValidId(evidenceId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+      allow create: if isVerifiedUser() && isValidId(evidenceId) && isValidTenantDoc(incoming()) && incoming().userId == request.auth.uid && incoming().createdAt == request.time && incoming().updatedAt == request.time && exists(/databases/$(database)/documents/schools/$(incoming().schoolId));
+      allow update: if isAdmin() && isValidId(evidenceId) && isValidTenantDoc(incoming()) && incoming().schoolId == existing().schoolId && incoming().createdBy == existing().createdBy && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'payload', 'updatedAt']);
+      allow delete: if false;
+    }
+  }
+}

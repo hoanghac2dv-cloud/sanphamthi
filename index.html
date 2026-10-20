@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        try {
+          var currentFetch = window.fetch ? window.fetch.bind(window) : undefined;
+          var winDesc = Object.getOwnPropertyDescriptor(window, 'fetch');
+          if (!winDesc || (winDesc.configurable && !winDesc.writable && !winDesc.set)) {
+            Object.defineProperty(window, 'fetch', {
+              configurable: true,
+              enumerable: true,
+              get: function () {
+                return currentFetch;
+              },
+              set: function (fn) {
+                if (typeof fn === 'function') {
+                  currentFetch = fn;
+                }
+              },
+            });
+          }
+          var protoDesc =
+            typeof Window !== 'undefined' && Window.prototype
+              ? Object.getOwnPropertyDescriptor(Window.prototype, 'fetch')
+              : null;
+          if (protoDesc && protoDesc.configurable && !protoDesc.writable && !protoDesc.set) {
+            Object.defineProperty(Window.prototype, 'fetch', {
+              configurable: true,
+              enumerable: true,
+              get: function () {
+                return currentFetch;
+              },
+              set: function (fn) {
+                if (typeof fn === 'function') {
+                  currentFetch = fn;
+                }
+              },
+            });
+          }
+        } catch (_e) {}
+
+        window.addEventListener(
+          'error',
+          function (event) {
+            var msg = String((event && event.message) || '');
+            var file = String((event && event.filename) || '');
+            if (
+              msg.indexOf('Cannot set property fetch') !== -1 ||
+              file.indexOf('chrome-extension://') === 0
+            ) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return false;
+            }
+          },
+          true
+        );
+      })();
+    </script>
+    <title>AI PATH - Adaptive & Personalized Learning Platform</title>
+    <meta name="description" content="Hệ thống học tập thích ứng và cá nhân hóa bằng trí tuệ nhân tạo. Mỗi học sinh – Một điểm xuất phát – Một lộ trình phù hợp." />
+    <meta property="og:title" content="AI PATH - Adaptive & Personalized Learning Platform" />
+    <meta property="og:description" content="Hệ thống học tập thích ứng và cá nhân hóa bằng trí tuệ nhân tạo. Mỗi học sinh – Một điểm xuất phát – Một lộ trình phù hợp." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AI PATH" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AI PATH - Adaptive & Personalized Learning Platform" />
+    <meta name="twitter:description" content="Hệ thống học tập thích ứng và cá nhân hóa bằng trí tuệ nhân tạo. Mỗi học sinh – Một điểm xuất phát – Một lộ trình phù hợp." />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "AI PATH",
+        "alternateName": "Adaptive & Personalized Learning Platform",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "All",
+        "description": "Hệ thống học tập thích ứng và cá nhân hóa bằng trí tuệ nhân tạo. Mỗi học sinh – Một điểm xuất phát – Một lộ trình phù hợp."
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body class="bg-[#F8FAFC] text-[#0F172A] antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
